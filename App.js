@@ -458,6 +458,19 @@ function buildInjectedScript(card, cvv) {
       ].filter(Boolean).join(" ").replace(/\\s+/g, " ").toLowerCase().slice(0, 500);
       const isSecurityLike = (input) => /cvv|cvc|security|verification/.test(fieldText(input));
       const isExpiryLike = (input) => /expir|expiry|expires|month|year|mm\\s*\\/\\s*yy/.test(fieldText(input));
+      const sameField = (left, right) => left && right && left === right;
+      const cardNumberElements = (field) => {
+        if (!field) return [];
+        return field.kind === "split" ? field.inputs : [field.input];
+      };
+      const expiryElements = (field) => {
+        if (!field) return [];
+        return field.kind === "split" ? [field.month, field.year] : [field.input];
+      };
+      const isShortField = (input) => {
+        const maxLength = Number(input.getAttribute("maxlength") || input.maxLength || 0);
+        return maxLength > 0 && maxLength <= 4;
+      };
       const scoreInput = (input, terms) => {
         const text = fieldText(input);
         let score = 0;
@@ -538,13 +551,20 @@ function buildInjectedScript(card, cvv) {
       const findFields = () => {
         const inputs = Array.from(document.querySelectorAll("input, select")).filter((input) => !input.disabled && !input.readOnly && visible(input));
         const cardNumber = findCardNumber(inputs);
-        const security = findInput(inputs, ["cvv", "cvc", "security code", "card security", "verification"]);
-        const expiryMonth = findInput(inputs, ["expiry month", "expiration month", "exp month", "month"], (input) => isSecurityLike(input));
-        const expiryYear = findInput(inputs, ["expiry year", "expiration year", "exp year", "year"], (input) => isSecurityLike(input));
-        const expiryCombined = findInput(inputs, ["expiry date", "expiration date", "expiry", "expires", "mm/yy", "mm / yy"]);
+        const cardControls = cardNumberElements(cardNumber);
+        const isCardControl = (input) => cardControls.some((control) => sameField(control, input));
+        const expiryMonth = findInput(inputs, ["expiry month", "expiration month", "exp month", "month"], (input) => isSecurityLike(input) || isCardControl(input));
+        const expiryYear = findInput(inputs, ["expiry year", "expiration year", "exp year", "year"], (input) => isSecurityLike(input) || isCardControl(input));
+        const expiryCombined = findInput(inputs, ["expiry date", "expiration date", "expiry", "expires", "mm/yy", "mm / yy"], (input) => isCardControl(input));
         let expiry = null;
         if (expiryMonth && expiryYear && expiryMonth !== expiryYear) expiry = { kind: "split", month: expiryMonth, year: expiryYear };
         else if (expiryCombined) expiry = { kind: "combined", input: expiryCombined };
+        const expiryControls = expiryElements(expiry);
+        const isExpiryControl = (input) => expiryControls.some((control) => sameField(control, input));
+        const security =
+          findInput(inputs, ["cvv", "cvc", "security code", "card security", "verification"], (input) => isCardControl(input) || isExpiryControl(input)) ||
+          inputs.find((input) => input.tagName !== "SELECT" && !isCardControl(input) && !isExpiryControl(input) && isShortField(input)) ||
+          null;
         return { cardNumber, security, expiry };
       };
       const submit = (anchor) => {
