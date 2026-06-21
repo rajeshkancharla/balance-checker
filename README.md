@@ -6,7 +6,7 @@ It stores card number and expiry on the device using Expo SecureStore, unlocks w
 
 ## Quick Start
 
-1. Install Node.js 22.13 or newer.
+1. Install Node.js 20.19 or newer.
 2. Install Expo tooling:
 
    ```sh
