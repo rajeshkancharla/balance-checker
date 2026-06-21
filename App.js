@@ -18,9 +18,12 @@ import { WebView } from "react-native-webview";
 
 const VAULT_KEY = "balance-checker:vault:v1";
 const BALANCE_URL = "https://www.cardbalance.com.au/";
-const SECURE_STORE_OPTIONS = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
-};
+const SECURE_STORE_OPTIONS = Platform.select({
+  ios: {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+  },
+  default: {}
+});
 
 const initialForm = {
   id: null,
@@ -40,6 +43,7 @@ export default function App() {
   const [cvv, setCvv] = useState("");
   const [webCheck, setWebCheck] = useState(null);
   const [status, setStatus] = useState("");
+  const [unlockMessage, setUnlockMessage] = useState("");
 
   useEffect(() => {
     unlockVault();
@@ -52,27 +56,38 @@ export default function App() {
 
   async function unlockVault() {
     setStatus("");
+    setUnlockMessage("Checking device security...");
     try {
-      const enrolledLevel = await LocalAuthentication.getEnrolledLevelAsync();
-      if (enrolledLevel !== LocalAuthentication.SecurityLevel.NONE) {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (hasHardware && isEnrolled) {
         const auth = await LocalAuthentication.authenticateAsync({
           promptMessage: "Unlock card vault",
           fallbackLabel: "Use passcode",
-          cancelLabel: "Cancel"
+          cancelLabel: "Cancel",
+          requireConfirmation: false
         });
         if (!auth.success) {
           setReady(true);
           setUnlocked(false);
+          setUnlockMessage("Unlock was cancelled.");
+          setStatus(auth.error ? `Authentication failed: ${auth.error}` : "");
           return;
         }
       }
 
+      setUnlockMessage("Identity confirmed. Opening vault...");
       const saved = await SecureStore.getItemAsync(VAULT_KEY, SECURE_STORE_OPTIONS);
-      setCards(saved ? JSON.parse(saved).cards ?? [] : []);
+      const parsed = saved ? JSON.parse(saved) : { cards: [] };
+      setCards(Array.isArray(parsed.cards) ? parsed.cards : []);
       setUnlocked(true);
       setReady(true);
+      setUnlockMessage("");
     } catch (error) {
       setReady(true);
+      setUnlocked(false);
+      setUnlockMessage("Could not unlock the local vault.");
       setStatus("Could not unlock the local vault.");
     }
   }
@@ -187,7 +202,7 @@ export default function App() {
     return screenShell(
       h(View, { style: styles.centerPanel },
         h(Text, { style: styles.title }, "Balance Checker"),
-        h(Text, { style: styles.muted }, "Unlock was cancelled."),
+        h(Text, { style: styles.muted }, unlockMessage || "Vault is locked."),
         h(Button, { label: "Unlock vault", onPress: unlockVault })
       ),
       status
@@ -244,6 +259,7 @@ export default function App() {
             onPress: () => {
               setUnlocked(false);
               setCards([]);
+              setUnlockMessage("Vault is locked.");
               setStatus("");
             }
           }, h(Text, { style: styles.secondaryText }, "Lock"))
