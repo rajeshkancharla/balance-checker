@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -34,6 +34,7 @@ const initialForm = {
 };
 
 export default function App() {
+  const webViewRef = useRef(null);
   const [isReady, setReady] = useState(false);
   const [isUnlocked, setUnlocked] = useState(false);
   const [cards, setCards] = useState([]);
@@ -183,12 +184,18 @@ export default function App() {
     setWebCheck({ card: checkingCard, cvv: cleanCvv });
     setCheckingCard(null);
     setCvv("");
-    setStatus("");
+    setStatus("Solve any CAPTCHA first, then tap Fill details.");
   }
 
   function closeWebCheck() {
     setWebCheck(null);
     setStatus("");
+  }
+
+  function fillCurrentWebView() {
+    if (!webCheck || !webViewRef.current) return;
+    setStatus("Filling details...");
+    webViewRef.current.injectJavaScript(buildInjectedScript(webCheck.card, webCheck.cvv));
   }
 
   if (!isReady) {
@@ -217,15 +224,20 @@ export default function App() {
           h(Text, { style: styles.webTitle }, webCheck.card.nickname),
           h(Text, { style: styles.muted }, "Official balance site")
         ),
-        h(Pressable, { style: styles.secondaryButton, onPress: closeWebCheck },
-          h(Text, { style: styles.secondaryText }, "Close")
+        h(View, { style: styles.webActions },
+          h(Pressable, { style: styles.primarySmallButton, onPress: fillCurrentWebView },
+            h(Text, { style: styles.primarySmallText }, "Fill details")
+          ),
+          h(Pressable, { style: styles.secondaryButton, onPress: closeWebCheck },
+            h(Text, { style: styles.secondaryText }, "Close")
+          )
         )
       ),
       h(WebView, {
+        ref: webViewRef,
         source: { uri: BALANCE_URL },
         javaScriptEnabled: true,
         domStorageEnabled: true,
-        injectedJavaScript: buildInjectedScript(webCheck.card, webCheck.cvv),
         onMessage: (event) => {
           try {
             const message = JSON.parse(event.nativeEvent.data);
@@ -236,7 +248,7 @@ export default function App() {
             setStatus(event.nativeEvent.data);
           }
         },
-        onLoadEnd: () => setStatus("Loaded balance site.")
+        onLoadEnd: () => setStatus("Solve any CAPTCHA first, then tap Fill details.")
       }),
       h(Text, { style: styles.status }, status)
     );
@@ -781,5 +793,23 @@ const styles = StyleSheet.create({
     color: "#1d232b",
     fontSize: 16,
     fontWeight: "700"
+  },
+  webActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  primarySmallButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 7,
+    backgroundColor: "#116d6e",
+    paddingHorizontal: 12
+  },
+  primarySmallText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 14
   }
 });
