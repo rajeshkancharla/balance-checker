@@ -436,7 +436,16 @@ function buildInjectedScript(card, cvv) {
         const rect = element.getBoundingClientRect();
         return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
       };
-      const labelText = (input) => input.id ? (document.querySelector('label[for="' + CSS.escape(input.id) + '"]')?.textContent || "") : "";
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const labelText = (input) => {
+        const explicit = input.id ? (document.querySelector('label[for="' + CSS.escape(input.id) + '"]')?.textContent || "") : "";
+        const wrapped = input.closest("label")?.textContent || "";
+        const aria = (input.getAttribute("aria-labelledby") || "")
+          .split(/\\s+/)
+          .map((id) => document.getElementById(id)?.textContent || "")
+          .join(" ");
+        return [explicit, wrapped, aria].filter(Boolean).join(" ");
+      };
       const fieldText = (input) => [
         input.id,
         input.name,
@@ -444,43 +453,94 @@ function buildInjectedScript(card, cvv) {
         input.ariaLabel,
         input.autocomplete,
         input.getAttribute("data-testid"),
-        labelText(input),
-        input.closest("label")?.textContent,
-        input.parentElement?.textContent
+        input.getAttribute("aria-label"),
+        labelText(input)
       ].filter(Boolean).join(" ").replace(/\\s+/g, " ").toLowerCase().slice(0, 500);
-      const findInput = (inputs, terms) => {
-        const scored = inputs.map((input, index) => {
+      const isSecurityLike = (input) => /cvv|cvc|security|verification/.test(fieldText(input));
+      const isExpiryLike = (input) => /expir|expiry|expires|month|year|mm\\s*\\/\\s*yy/.test(fieldText(input));
+      const scoreInput = (input, terms) => {
+        const text = fieldText(input);
+        let score = 0;
+        for (const term of terms) {
+          if (text.includes(term)) score += term.length;
+        }
+        if (input.type === "tel" || input.inputMode === "numeric") score += 2;
+        if (input.autocomplete === "cc-number") score += 40;
+        const maxLength = Number(input.getAttribute("maxlength") || input.maxLength || 0);
+        if (maxLength >= 12 || maxLength === 0) score += 8;
+        if (maxLength > 0 && maxLength <= 4) score -= 8;
+        return score;
+      };
+      const findInput = (inputs, terms, exclude = () => false) => {
+        const scored = inputs.filter((input) => !exclude(input)).map((input, index) => {
           const text = fieldText(input);
-          let score = 0;
-          for (const term of terms) if (text.includes(term)) score += term.length;
-          if (input.type === "tel" || input.inputMode === "numeric") score += 1;
+          let score = scoreInput(input, terms);
+          if (terms.includes("card number") && text.includes("card") && text.includes("number")) score += 50;
           return { input, score, index };
         }).sort((a, b) => b.score - a.score || a.index - b.index);
         return scored[0] && scored[0].score > 0 ? scored[0].input : null;
+      };
+      const findCardNumber = (inputs) => {
+        const single = findInput(
+          inputs.filter((input) => input.tagName !== "SELECT"),
+          ["card number", "card no", "cardnumber", "card num", "pan", "number"],
+          (input) => isSecurityLike(input) || isExpiryLike(input)
+        );
+        if (single) return { kind: "single", input: single };
+
+        const split = inputs
+          .filter((input) => input.tagName !== "SELECT" && !isSecurityLike(input) && !isExpiryLike(input))
+          .filter((input) => {
+            const maxLength = Number(input.getAttribute("maxlength") || input.maxLength || 0);
+            return input.type === "tel" || input.inputMode === "numeric" || maxLength === 4;
+          })
+          .slice(0, 4);
+        return split.length >= 4 ? { kind: "split", inputs: split } : null;
       };
       const norm = (value) => {
         const digits = String(value).replace(/\\D/g, "");
         return digits.length === 1 ? digits.padStart(2, "0") : digits.slice(-2);
       };
+      const setNativeValue = (input, value) => {
+        const prototype = Object.getPrototypeOf(input);
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+        if (descriptor && descriptor.set) descriptor.set.call(input, value);
+        else input.value = value;
+      };
       const fill = (input, value) => {
         input.focus();
         if (input.tagName === "SELECT") {
           const normalized = norm(value);
-          const option = Array.from(input.options).find((candidate) => norm(candidate.value) === normalized || norm(candidate.textContent) === normalized);
+          const raw = String(value);
+          const option = Array.from(input.options).find((candidate) => {
+            return candidate.value === raw ||
+              candidate.textContent.trim() === raw ||
+              norm(candidate.value) === normalized ||
+              norm(candidate.textContent) === normalized;
+          });
           input.value = option ? option.value : value;
         } else {
-          input.value = value;
+          setNativeValue(input, value);
         }
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
         input.blur();
+      };
+      const fillCardNumber = (field, number) => {
+        const digits = String(number).replace(/\\D/g, "");
+        if (field.kind === "split") {
+          field.inputs.forEach((input, index) => fill(input, digits.slice(index * 4, index * 4 + 4)));
+        } else {
+          fill(field.input, digits);
+        }
       };
       const findFields = () => {
         const inputs = Array.from(document.querySelectorAll("input, select")).filter((input) => !input.disabled && !input.readOnly && visible(input));
-        const cardNumber = findInput(inputs, ["card number", "card no", "cardnumber", "pan", "number"]);
+        const cardNumber = findCardNumber(inputs);
         const security = findInput(inputs, ["cvv", "cvc", "security code", "card security", "verification"]);
-        const expiryMonth = findInput(inputs, ["expiry month", "expiration month", "exp month", "month"]);
-        const expiryYear = findInput(inputs, ["expiry year", "expiration year", "exp year", "year"]);
+        const expiryMonth = findInput(inputs, ["expiry month", "expiration month", "exp month", "month"], (input) => isSecurityLike(input));
+        const expiryYear = findInput(inputs, ["expiry year", "expiration year", "exp year", "year"], (input) => isSecurityLike(input));
         const expiryCombined = findInput(inputs, ["expiry date", "expiration date", "expiry", "expires", "mm/yy", "mm / yy"]);
         let expiry = null;
         if (expiryMonth && expiryYear && expiryMonth !== expiryYear) expiry = { kind: "split", month: expiryMonth, year: expiryYear };
@@ -515,7 +575,7 @@ function buildInjectedScript(card, cvv) {
           send("status", "Filling balance form...");
           const fields = findFields();
           if (!fields.cardNumber || !fields.security || !fields.expiry) throw new Error("Could not identify every required field.");
-          fill(fields.cardNumber, card.number);
+          fillCardNumber(fields.cardNumber, card.number);
           if (fields.expiry.kind === "split") {
             fill(fields.expiry.month, card.expiryMonth);
             fill(fields.expiry.year, card.expiryYear);
@@ -523,8 +583,10 @@ function buildInjectedScript(card, cvv) {
             fill(fields.expiry.input, card.expiryMonth + "/" + card.expiryYear);
           }
           fill(fields.security, card.cvv);
+          await sleep(500);
           send("status", "Submitting details...");
-          if (!submit(fields.cardNumber)) throw new Error("Could not find a submit button.");
+          const submitAnchor = fields.cardNumber.kind === "split" ? fields.cardNumber.inputs[0] : fields.cardNumber.input;
+          if (!submit(submitAnchor)) throw new Error("Could not find a submit button.");
           const balance = await waitForBalance();
           if (balance) send("balance", balance);
           else send("status", "Submitted. Check the page for the displayed balance.");
