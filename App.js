@@ -576,29 +576,6 @@ function buildInjectedScript(card, cvv) {
         }
         return { cardNumber, security, expiry };
       };
-      const submit = (anchor) => {
-        const form = anchor.closest("form");
-        const candidates = [
-          ...(form ? Array.from(form.querySelectorAll("button, input[type='submit']")) : []),
-          ...Array.from(document.querySelectorAll("button, input[type='submit']"))
-        ].filter((element) => !element.disabled && visible(element));
-        const button = candidates.find((element) => /check|balance|submit|continue|next/i.test(element.textContent || element.value || "")) || candidates[0];
-        if (button) {
-          button.click();
-          return true;
-        }
-        if (form) {
-          form.requestSubmit ? form.requestSubmit() : form.submit();
-          return true;
-        }
-        return false;
-      };
-      const waitForBalance = () => waitFor(() => {
-        const text = document.body.innerText.replace(/\\s+/g, " ");
-        const match = text.match(/(available|remaining|current)?\\s*balance[^$]{0,80}(\\$\\s?\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?)/i);
-        return match ? match[2] : false;
-      }, 20000).catch(() => null);
-
       waitFor(() => document.querySelectorAll("input, select").length > 0, 10000)
         .then(async () => {
           send("status", "Filling balance form...");
@@ -612,13 +589,8 @@ function buildInjectedScript(card, cvv) {
             fill(fields.expiry.input, card.expiryMonth + "/" + card.expiryYear);
           }
           fill(fields.security, card.cvv);
-          await sleep(500);
-          send("status", "Submitting details...");
-          const submitAnchor = fields.cardNumber.kind === "split" ? fields.cardNumber.inputs[0] : fields.cardNumber.input;
-          if (!submit(submitAnchor)) throw new Error("Could not find a submit button.");
-          const balance = await waitForBalance();
-          if (balance) send("balance", balance);
-          else send("status", "Submitted. Check the page for the displayed balance.");
+          await sleep(300);
+          send("status", "Details filled. Tap Submit on the page.");
         })
         .catch((error) => send("error", error.message + " You can finish manually on this official page."));
     })();
