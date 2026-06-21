@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Card Balance</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>Card Balance</h1>
+          <p id="subtitle">Encrypted local vault</p>
+        </div>
+        <button id="lockButton" class="icon-button" title="Lock vault" hidden>Lock</button>
+      </header>
+
+      <section id="setupView" class="view" hidden>
+        <h2>Create Vault</h2>
+        <label>
+          Vault password
+          <input id="setupPassword" type="password" autocomplete="new-password">
+        </label>
+        <label>
+          Confirm password
+          <input id="setupPasswordConfirm" type="password" autocomplete="new-password">
+        </label>
+        <button id="createVaultButton" class="primary">Create encrypted vault</button>
+      </section>
+
+      <section id="unlockView" class="view" hidden>
+        <h2>Unlock</h2>
+        <p id="devicePrompt" class="hint" hidden>Device verification is enabled for this vault.</p>
+        <label>
+          Vault password
+          <input id="unlockPassword" type="password" autocomplete="current-password">
+        </label>
+        <button id="unlockButton" class="primary">Unlock vault</button>
+      </section>
+
+      <section id="vaultView" class="view" hidden>
+        <div class="toolbar">
+          <button id="addCardButton" class="secondary">Add card</button>
+          <button id="deviceVerifyButton" class="secondary">Set up device check</button>
+        </div>
+
+        <form id="cardForm" class="panel" hidden>
+          <h2 id="cardFormTitle">Add card</h2>
+          <label>
+            Nickname
+            <input id="cardNickname" type="text" placeholder="Officeworks Visa 1234" autocomplete="off">
+          </label>
+          <label>
+            Card number
+            <input id="cardNumber" type="text" inputmode="numeric" autocomplete="off">
+          </label>
+          <div class="row">
+            <label>
+              Expiry month
+              <input id="expiryMonth" type="text" inputmode="numeric" placeholder="MM" autocomplete="off">
+            </label>
+            <label>
+              Expiry year
+              <input id="expiryYear" type="text" inputmode="numeric" placeholder="YY" autocomplete="off">
+            </label>
+          </div>
+          <div class="actions">
+            <button id="saveCardButton" class="primary" type="submit">Save card</button>
+            <button id="cancelCardButton" class="secondary" type="button">Cancel</button>
+          </div>
+        </form>
+
+        <div id="emptyState" class="empty" hidden>No cards saved yet.</div>
+        <div id="cardList" class="cards"></div>
+      </section>
+
+      <section id="cvvView" class="view" hidden>
+        <h2 id="cvvTitle">Check balance</h2>
+        <p class="hint">CVV is used once and is not saved.</p>
+        <label>
+          CVV
+          <input id="cvvInput" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+        </label>
+        <div class="actions">
+          <button id="startCheckButton" class="primary">Open and check</button>
+          <button id="cancelCvvButton" class="secondary">Cancel</button>
+        </div>
+      </section>
+
+      <p id="status" role="status"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
