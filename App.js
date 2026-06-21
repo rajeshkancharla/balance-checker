@@ -16,7 +16,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { WebView } from "react-native-webview";
 
-const VAULT_KEY = "balance-checker:vault:v1";
+const VAULT_KEY = "balance-checker.vault.v1";
 const BALANCE_URL = "https://www.cardbalance.com.au/";
 const SECURE_STORE_OPTIONS = Platform.select({
   ios: {
@@ -88,7 +88,7 @@ export default function App() {
       setReady(true);
       setUnlocked(false);
       setUnlockMessage("Could not unlock the local vault.");
-      setStatus("Could not unlock the local vault.");
+      setStatus(`Could not unlock the local vault: ${error.message}`);
     }
   }
 
