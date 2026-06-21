@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Balance Checker",
+    "slug": "balance-checker",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "balancechecker",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rajeshkancharla.balancechecker",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Unlock your local card vault."
+      }
+    },
+    "android": {
+      "package": "com.rajeshkancharla.balancechecker",
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Unlock your local card vault."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Unlock your local card vault."
+        }
+      ]
+    ]
+  }
+}

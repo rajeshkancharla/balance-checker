@@ -1,35 +1,47 @@
-# Local Card Balance Helper
+# Balance Checker
 
-This is a local Chrome/Edge extension prototype for prepaid cards checked through `https://www.cardbalance.com.au/`.
+Balance Checker is a local-first mobile app for checking prepaid card balances through `https://www.cardbalance.com.au/`.
 
-It stores card number and expiry in an encrypted vault inside the browser profile. It does **not** save CVV in the vault. When you check a balance, the extension asks for CVV, opens the official balance website, fills the form, submits it, and tries to read the displayed balance.
+It stores card number and expiry on the device using Expo SecureStore, unlocks with the phone's biometric or passcode prompt when available, asks for CVV only at check time, opens the official balance website in an in-app WebView, fills the form, submits it, and tries to read the displayed balance.
 
-## Install
+## Quick Start
 
-1. Open Chrome or Edge.
-2. Go to `chrome://extensions` or `edge://extensions`.
-3. Turn on **Developer mode**.
-4. Choose **Load unpacked**.
-5. Select this folder: `officeworks-card-balance-extension`.
+1. Install Node.js 22.13 or newer.
+2. Install Expo tooling:
+
+   ```sh
+   npm install
+   npx expo start
+   ```
+
+3. Install **Expo Go** on your phone.
+4. Scan the QR code shown by Expo.
+
+For a permanent app icon, build a development or production app with EAS:
+
+```sh
+npm install -g eas-cli
+eas build --platform android
+```
+
+For iPhone builds, you need an Apple Developer account or a local Xcode setup. Face ID is limited in Expo Go, so use a development build for proper iPhone biometric testing.
 
 ## Use
 
-1. Click the extension icon.
-2. Create a vault password.
+1. Open the app.
+2. Unlock with Face ID, fingerprint, or device passcode if your phone supports it.
 3. Add a card nickname, card number, and expiry date.
-4. Optionally choose **Set up device check** to ask the browser for platform verification before unlocking.
-5. Click **Check**, enter the CVV, and the extension opens the official balance website.
+4. Tap **Check**, enter the CVV, and the app opens the official balance site.
 
 ## Security Notes
 
-- CVV is only held long enough to hand it to the newly opened balance tab. It is not written to the encrypted vault or `chrome.storage.local`.
-- Card details are encrypted with AES-GCM using a key derived from your vault password with PBKDF2.
-- The vault lives only in `chrome.storage.local` for this browser profile.
-- Device verification uses the browser WebAuthn/passkey prompt where available. It is an extra local unlock gate, not a replacement for the vault password.
-- Do not sync or upload this extension folder with real card data in screenshots, logs, or bug reports.
+- CVV is not saved. It is only kept in memory long enough to fill the official balance page.
+- Card details are stored locally with SecureStore, backed by the platform secure storage where available.
+- There is no backend service, analytics, or cloud sync.
+- Do not put real card data in screenshots, issue reports, or logs.
 
 ## Known Limits
 
 - There is no public documented API for `cardbalance.com.au`, so this uses the official website form.
 - The site may change its field names, layout, validation, or bot protection. If that happens, the automation may need updating.
-- If the extension cannot identify the form fields, it leaves you on the official page so you can complete the check manually.
+- If the app cannot identify the form fields, it leaves you on the official page so you can complete the check manually.
